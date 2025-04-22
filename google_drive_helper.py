@@ -15,15 +15,18 @@ except (ImportError, AttributeError):
     ROOT_FOLDER_NAME = 'Employee Management System'
 
 class GoogleDriveHelper:
-    def __init__(self, credentials_path=None):
+    def __init__(self, credentials_path=None, root_folder_name=None):
         """
         Initialize the Google Drive helper with service account credentials.
         
         Args:
             credentials_path: Path to the service account credentials JSON file.
                              If None, will use the configured path or GOOGLE_APPLICATION_CREDENTIALS env var.
+            root_folder_name: Name of the root folder in Google Drive.
+                             If None, will use the configured name.
         """
         self.credentials_path = credentials_path or CREDENTIALS_PATH
+        self.root_folder_name = root_folder_name or ROOT_FOLDER_NAME
         self.drive_service = None
         self.root_folder_id = None
         
@@ -32,7 +35,7 @@ class GoogleDriveHelper:
             self._initialize_service()
             if self.is_enabled():
                 # Create or get the root folder
-                self.root_folder_id = self.create_folder_if_not_exists(ROOT_FOLDER_NAME)
+                self.root_folder_id = self.create_folder_if_not_exists(self.root_folder_name)
         else:
             print("Warning: Google Drive credentials not found. File uploads will be stored locally.")
     
@@ -227,4 +230,5 @@ class GoogleDriveHelper:
         return f"https://drive.google.com/drive/folders/{folder_id}"
 
 # Create a singleton instance
+# Note: This singleton is not used in app.py, which creates its own instance
 drive_helper = GoogleDriveHelper()
