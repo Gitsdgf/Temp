@@ -1,0 +1,181 @@
+{% extends 'base.html' %}
+
+{% block title %}Add New Employee - Employee Management System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Home</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Add Employee</li>
+            </ol>
+        </nav>
+        
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="bi bi-person-plus me-2"></i>Add New Employee</h4>
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('add_employee') }}" method="post" enctype="multipart/form-data">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="first_name" class="form-label">First Name</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-person"></i></span>
+                                <input type="text" class="form-control" id="first_name" name="first_name" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="last_name" class="form-label">Last Name</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-person"></i></span>
+                                <input type="text" class="form-control" id="last_name" name="last_name" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                            <input type="email" class="form-control" id="email" name="email" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="phone" class="form-label">Phone Number</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-telephone"></i></span>
+                            <input type="tel" class="form-control" id="phone" name="phone" required>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="department" class="form-label">Department</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-building"></i></span>
+                                <select class="form-select" id="department" name="department" required>
+                                    <option value="" selected disabled>Select Department</option>
+                                    {% for department in departments %}
+                                        <option value="{{ department }}">{{ department }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="position" class="form-label">Position</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-briefcase"></i></span>
+                                <input type="text" class="form-control" id="position" name="position" list="position-suggestions" autocomplete="off" required>
+                                <datalist id="position-suggestions"></datalist>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="hire_date" class="form-label">Hire Date</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-calendar"></i></span>
+                            <input type="text" class="form-control date-picker" id="hire_date" name="hire_date" placeholder="Select date" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="address" class="form-label">Address</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-geo-alt"></i></span>
+                            <textarea class="form-control" id="address" name="address" rows="3" required></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="salary" class="form-label">Salary</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-currency-dollar"></i></span>
+                            <input type="number" step="0.01" min="0" class="form-control" id="salary" name="salary" placeholder="0.00">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">Notes</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-sticky"></i></span>
+                            <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="photo" class="form-label">Employee Photo</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-image"></i></span>
+                            <input type="file" class="form-control" id="photo" name="photo" accept=".jpg,.jpeg,.png,.gif">
+                        </div>
+                        <div class="form-text">Upload a profile photo (JPG, PNG, or GIF format)</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="education_background" class="form-label">Education Background</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-mortarboard"></i></span>
+                            <textarea class="form-control" id="education_background" name="education_background" rows="3" placeholder="Enter education details (degrees, institutions, years, etc.)"></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="education_document" class="form-label">Education Documents</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-file-earmark-text"></i></span>
+                            <input type="file" class="form-control" id="education_document" name="education_document" accept=".pdf,.doc,.docx,.txt">
+                        </div>
+                        <div class="form-text">Upload education certificates or transcripts (PDF, DOC, DOCX, or TXT format)</div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                        <a href="{{ url_for('index') }}" class="btn btn-secondary me-md-2">
+                            <i class="bi bi-x-circle me-1"></i>Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-person-plus me-1"></i>Add Employee
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Initialize date picker
+    document.addEventListener('DOMContentLoaded', function() {
+        flatpickr(".date-picker", {
+            dateFormat: "Y-m-d",
+            allowInput: true,
+            defaultDate: "today"
+        });
+        
+        // Position autocomplete
+        const positionInput = document.getElementById('position');
+        
+        positionInput.addEventListener('input', function() {
+            if (this.value.length >= 2) {
+                fetch(`/positions?q=${this.value}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        const datalist = document.getElementById('position-suggestions');
+                        datalist.innerHTML = '';
+                        
+                        data.forEach(position => {
+                            const option = document.createElement('option');
+                            option.value = position;
+                            datalist.appendChild(option);
+                        });
+                    });
+            }
+        });
+    });
+</script>
+{% endblock %}
