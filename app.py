@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import wraps
 from markupsafe import Markup
 import os
@@ -335,7 +335,7 @@ def index():
         
         # Check if user has an employee profile
         if user and user.employee_id:
-            employee = Employee.query.get(user.employee_id)
+            employee = db.session.get(Employee, user.employee_id)
             if employee:
                 educations = Education.query.filter_by(employee_id=employee.id).all()
                 certifications = Certification.query.filter_by(employee_id=employee.id).all()
@@ -382,7 +382,7 @@ def add_department():
             phone="N/A",
             department=department_name,
             position="Department Head",
-            hire_date=datetime.utcnow(),
+            hire_date=datetime.now(timezone.utc),
             salary=0,
             current_address="N/A",
             permanent_address="N/A",
@@ -701,7 +701,7 @@ def self_onboarding():
     
     # Check if user already has an employee profile
     if user.employee_id:
-        employee = Employee.query.get(user.employee_id)
+        employee = db.session.get(Employee, user.employee_id)
         educations = Education.query.filter_by(employee_id=employee.id).all()
         certifications = Certification.query.filter_by(employee_id=employee.id).all()
         documents = Document.query.filter_by(employee_id=employee.id).all()
@@ -853,7 +853,7 @@ def self_onboarding():
                 phone=request.form['phone'],
                 department=request.form.get('department', 'Unassigned'),
                 position=request.form.get('position', 'New Hire'),
-                hire_date=datetime.utcnow().date(),
+                hire_date=datetime.now(timezone.utc).date(),
                 current_address=request.form['current_address'],
                 permanent_address=request.form.get('permanent_address', ''),
                 salary=0,  # Salary will be set by admin
@@ -885,7 +885,7 @@ def self_onboarding():
                             
                             if not new_employee.drive_folder_id:
                                 employee_folder_id = drive_helper.create_folder(
-                                    employee_folder_name, 
+                                    folder_name=employee_folder_name, 
                                     parent_id=drive_helper.root_folder_id
                                 )
                                 # Update employee record with folder ID
@@ -895,12 +895,24 @@ def self_onboarding():
                                 employee_folder_id = new_employee.drive_folder_id
                             
                             # Upload profile picture to Google Drive
+                            # Save file temporarily to disk
+                            temp_file_path = os.path.join(app.config['PROFILE_PICTURES_FOLDER'], 'temp', unique_filename)
+                            os.makedirs(os.path.dirname(temp_file_path), exist_ok=True)
+                            profile_pic.save(temp_file_path)
+                            
+                            # Upload to Google Drive
                             drive_file_id = drive_helper.upload_file(
-                                profile_pic,
-                                filename=unique_filename,
-                                mime_type=profile_pic.content_type,
-                                parent_id=employee_folder_id
+                                file_path=temp_file_path,
+                                file_name=unique_filename,
+                                parent_folder_id=employee_folder_id,
+                                mime_type=profile_pic.content_type
                             )
+                            
+                            # Remove temporary file
+                            try:
+                                os.remove(temp_file_path)
+                            except:
+                                pass
                             
                             # Update employee record with the Drive file ID
                             new_employee.drive_profile_pic_id = drive_file_id
@@ -936,7 +948,7 @@ def self_onboarding():
                                 # Create or get employee folder in Google Drive
                                 if not new_employee.drive_folder_id:
                                     employee_folder_id = drive_helper.create_folder(
-                                        employee_folder_name, 
+                                        folder_name=employee_folder_name, 
                                         parent_id=drive_helper.root_folder_id
                                     )
                                     # Update employee record with folder ID
@@ -946,12 +958,24 @@ def self_onboarding():
                                     employee_folder_id = new_employee.drive_folder_id
                                 
                                 # Upload file to Google Drive
+                                # Save file temporarily to disk
+                                temp_file_path = os.path.join(app.config['DOCUMENTS_FOLDER'], 'temp', unique_filename)
+                                os.makedirs(os.path.dirname(temp_file_path), exist_ok=True)
+                                doc_file.save(temp_file_path)
+                                
+                                # Upload to Google Drive
                                 drive_file_id = drive_helper.upload_file(
-                                    doc_file,
-                                    filename=unique_filename,
-                                    mime_type=doc_file.content_type,
-                                    parent_id=employee_folder_id
+                                    file_path=temp_file_path,
+                                    file_name=unique_filename,
+                                    parent_folder_id=employee_folder_id,
+                                    mime_type=doc_file.content_type
                                 )
+                                
+                                # Remove temporary file
+                                try:
+                                    os.remove(temp_file_path)
+                                except:
+                                    pass
                             
                             # Also save locally as backup
                             employee_folder = os.path.join(app.config['DOCUMENTS_FOLDER'], f"{new_employee.employee_id}_{new_employee.first_name}_{new_employee.last_name}")
@@ -1103,7 +1127,7 @@ def uploaded_file(filename):
             
             # Regular user can only access their own files
             if user and user.employee_id:
-                employee = Employee.query.get(user.employee_id)
+                employee = db.session.get(Employee, user.employee_id)
                 if employee and employee.drive_folder_id:
                     # Check if file is in user's folder
                     if drive_helper.is_file_in_folder(file_id, employee.drive_folder_id):
@@ -1141,7 +1165,7 @@ def uploaded_file(filename):
     
     # Regular user can only access their own files
     if user and user.employee_id:
-        employee = Employee.query.get(user.employee_id)
+        employee = db.session.get(Employee, user.employee_id)
         
         # Check if the file belongs to this employee
         if employee:
