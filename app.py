@@ -20,11 +20,15 @@ app.config['SECRET_KEY'] = 'your-secret-key'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///employees.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# Increase request body size limit for file uploads
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app)
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
+
 # File upload configuration
 app.config['UPLOAD_FOLDER'] = os.path.join(app.static_folder, 'uploads')
 app.config['PROFILE_PICTURES_FOLDER'] = os.path.join(app.config['UPLOAD_FOLDER'], 'profile_pictures')
 app.config['DOCUMENTS_FOLDER'] = os.path.join(app.config['UPLOAD_FOLDER'], 'documents')
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 app.config['ALLOWED_DOCUMENT_EXTENSIONS'] = {'pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'}
 app.config['ALLOWED_IMAGE_EXTENSIONS'] = {'jpg', 'jpeg', 'png', 'gif'}
 
@@ -195,6 +199,10 @@ def logout():
 @app.route('/')
 @login_required
 def index():
+    # Check if user is logged in
+    if 'logged_in' not in session:
+        return redirect(url_for('login'))
+        
     # Check if user is admin
     if session.get('is_admin', False):
         # Admin dashboard
@@ -226,7 +234,12 @@ def index():
             if employee:
                 educations = Education.query.filter_by(employee_id=employee.id).all()
                 certifications = Certification.query.filter_by(employee_id=employee.id).all()
-                return render_template('employee_dashboard.html', employee=employee, educations=educations, certifications=certifications)
+                documents = Document.query.filter_by(employee_id=employee.id).all()
+                return render_template('employee_dashboard.html', 
+                                      employee=employee, 
+                                      educations=educations, 
+                                      certifications=certifications,
+                                      documents=documents)
         
         # Redirect to self-onboarding if no profile exists
         flash('Please complete your profile information', 'info')
@@ -606,46 +619,52 @@ def self_onboarding():
             if 'profile_picture' in request.files and request.files['profile_picture'].filename:
                 profile_pic = request.files['profile_picture']
                 if profile_pic and allowed_file(profile_pic.filename, app.config['ALLOWED_IMAGE_EXTENSIONS']):
-                    # Create employee folder if it doesn't exist
-                    employee_folder = os.path.join(app.config['PROFILE_PICTURES_FOLDER'], f"{employee.employee_id}_{employee.first_name}_{employee.last_name}")
-                    os.makedirs(employee_folder, exist_ok=True)
-                    
-                    # Generate unique filename
-                    filename = secure_filename(profile_pic.filename)
-                    unique_filename = f"{uuid.uuid4().hex}_{filename}"
-                    file_path = os.path.join(employee_folder, unique_filename)
-                    
-                    # Save the file
-                    profile_pic.save(file_path)
-                    
-                    # Update employee record with the new profile picture
-                    employee.profile_picture = os.path.join(f"{employee.employee_id}_{employee.first_name}_{employee.last_name}", unique_filename)
+                    try:
+                        # Create employee folder if it doesn't exist
+                        employee_folder = os.path.join(app.config['PROFILE_PICTURES_FOLDER'], f"{employee.employee_id}_{employee.first_name}_{employee.last_name}")
+                        os.makedirs(employee_folder, exist_ok=True)
+                        
+                        # Generate unique filename
+                        filename = secure_filename(profile_pic.filename)
+                        unique_filename = f"{uuid.uuid4().hex}_{filename}"
+                        file_path = os.path.join(employee_folder, unique_filename)
+                        
+                        # Save the file in chunks to handle large files
+                        profile_pic.save(file_path)
+                        
+                        # Update employee record with the new profile picture
+                        employee.profile_picture = os.path.join(f"{employee.employee_id}_{employee.first_name}_{employee.last_name}", unique_filename)
+                    except Exception as e:
+                        flash(f'Error uploading profile picture: {str(e)}', 'danger')
             
             # Handle document uploads
             for doc_type in ['certificate', 'experience_letter', 'offer_letter']:
                 if doc_type in request.files and request.files[doc_type].filename:
                     doc_file = request.files[doc_type]
                     if doc_file and allowed_file(doc_file.filename, app.config['ALLOWED_DOCUMENT_EXTENSIONS']):
-                        # Create employee document folder if it doesn't exist
-                        employee_folder = os.path.join(app.config['DOCUMENTS_FOLDER'], f"{employee.employee_id}_{employee.first_name}_{employee.last_name}")
-                        os.makedirs(employee_folder, exist_ok=True)
-                        
-                        # Generate unique filename
-                        filename = secure_filename(doc_file.filename)
-                        unique_filename = f"{doc_type}_{uuid.uuid4().hex}_{filename}"
-                        file_path = os.path.join(employee_folder, unique_filename)
-                        
-                        # Save the file
-                        doc_file.save(file_path)
-                        
-                        # Create document record
-                        document = Document(
-                            employee_id=employee.id,
-                            filename=os.path.join(f"{employee.employee_id}_{employee.first_name}_{employee.last_name}", unique_filename),
-                            original_filename=filename,
-                            document_type=doc_type
-                        )
-                        db.session.add(document)
+                        try:
+                            # Create employee document folder if it doesn't exist
+                            employee_folder = os.path.join(app.config['DOCUMENTS_FOLDER'], f"{employee.employee_id}_{employee.first_name}_{employee.last_name}")
+                            os.makedirs(employee_folder, exist_ok=True)
+                            
+                            # Generate unique filename
+                            filename = secure_filename(doc_file.filename)
+                            unique_filename = f"{doc_type}_{uuid.uuid4().hex}_{filename}"
+                            file_path = os.path.join(employee_folder, unique_filename)
+                            
+                            # Save the file in chunks to handle large files
+                            doc_file.save(file_path)
+                            
+                            # Create document record
+                            document = Document(
+                                employee_id=employee.id,
+                                filename=os.path.join(f"{employee.employee_id}_{employee.first_name}_{employee.last_name}", unique_filename),
+                                original_filename=filename,
+                                document_type=doc_type
+                            )
+                            db.session.add(document)
+                        except Exception as e:
+                            flash(f'Error uploading {doc_type}: {str(e)}', 'danger')
             
             # Update education information
             # First, remove all existing education records for this employee
@@ -748,48 +767,54 @@ def self_onboarding():
             if 'profile_picture' in request.files and request.files['profile_picture'].filename:
                 profile_pic = request.files['profile_picture']
                 if profile_pic and allowed_file(profile_pic.filename, app.config['ALLOWED_IMAGE_EXTENSIONS']):
-                    # Create employee folder if it doesn't exist
-                    employee_folder = os.path.join(app.config['PROFILE_PICTURES_FOLDER'], f"{new_employee.employee_id}_{new_employee.first_name}_{new_employee.last_name}")
-                    os.makedirs(employee_folder, exist_ok=True)
-                    
-                    # Generate unique filename
-                    filename = secure_filename(profile_pic.filename)
-                    unique_filename = f"{uuid.uuid4().hex}_{filename}"
-                    file_path = os.path.join(employee_folder, unique_filename)
-                    
-                    # Save the file
-                    profile_pic.save(file_path)
-                    
-                    # Update employee record with the new profile picture
-                    new_employee.profile_picture = os.path.join(f"{new_employee.employee_id}_{new_employee.first_name}_{new_employee.last_name}", unique_filename)
-                    db.session.commit()
+                    try:
+                        # Create employee folder if it doesn't exist
+                        employee_folder = os.path.join(app.config['PROFILE_PICTURES_FOLDER'], f"{new_employee.employee_id}_{new_employee.first_name}_{new_employee.last_name}")
+                        os.makedirs(employee_folder, exist_ok=True)
+                        
+                        # Generate unique filename
+                        filename = secure_filename(profile_pic.filename)
+                        unique_filename = f"{uuid.uuid4().hex}_{filename}"
+                        file_path = os.path.join(employee_folder, unique_filename)
+                        
+                        # Save the file in chunks to handle large files
+                        profile_pic.save(file_path)
+                        
+                        # Update employee record with the new profile picture
+                        new_employee.profile_picture = os.path.join(f"{new_employee.employee_id}_{new_employee.first_name}_{new_employee.last_name}", unique_filename)
+                        db.session.commit()
+                    except Exception as e:
+                        flash(f'Error uploading profile picture: {str(e)}', 'danger')
             
             # Handle document uploads
             for doc_type in ['certificate', 'experience_letter', 'offer_letter']:
                 if doc_type in request.files and request.files[doc_type].filename:
                     doc_file = request.files[doc_type]
                     if doc_file and allowed_file(doc_file.filename, app.config['ALLOWED_DOCUMENT_EXTENSIONS']):
-                        # Create employee document folder if it doesn't exist
-                        employee_folder = os.path.join(app.config['DOCUMENTS_FOLDER'], f"{new_employee.employee_id}_{new_employee.first_name}_{new_employee.last_name}")
-                        os.makedirs(employee_folder, exist_ok=True)
-                        
-                        # Generate unique filename
-                        filename = secure_filename(doc_file.filename)
-                        unique_filename = f"{doc_type}_{uuid.uuid4().hex}_{filename}"
-                        file_path = os.path.join(employee_folder, unique_filename)
-                        
-                        # Save the file
-                        doc_file.save(file_path)
-                        
-                        # Create document record
-                        document = Document(
-                            employee_id=new_employee.id,
-                            filename=os.path.join(f"{new_employee.employee_id}_{new_employee.first_name}_{new_employee.last_name}", unique_filename),
-                            original_filename=filename,
-                            document_type=doc_type
-                        )
-                        db.session.add(document)
-                        db.session.commit()
+                        try:
+                            # Create employee document folder if it doesn't exist
+                            employee_folder = os.path.join(app.config['DOCUMENTS_FOLDER'], f"{new_employee.employee_id}_{new_employee.first_name}_{new_employee.last_name}")
+                            os.makedirs(employee_folder, exist_ok=True)
+                            
+                            # Generate unique filename
+                            filename = secure_filename(doc_file.filename)
+                            unique_filename = f"{doc_type}_{uuid.uuid4().hex}_{filename}"
+                            file_path = os.path.join(employee_folder, unique_filename)
+                            
+                            # Save the file in chunks to handle large files
+                            doc_file.save(file_path)
+                            
+                            # Create document record
+                            document = Document(
+                                employee_id=new_employee.id,
+                                filename=os.path.join(f"{new_employee.employee_id}_{new_employee.first_name}_{new_employee.last_name}", unique_filename),
+                                original_filename=filename,
+                                document_type=doc_type
+                            )
+                            db.session.add(document)
+                            db.session.commit()
+                        except Exception as e:
+                            flash(f'Error uploading {doc_type}: {str(e)}', 'danger')
             
             # Process education information if provided
             education_count = int(request.form.get('education_count', 0))
@@ -870,7 +895,7 @@ def self_onboarding():
                               certifications=[],
                               documents=[])
 
-@app.route('/create-user', methods=['GET', 'POST'])
+@app.route('/create_user', methods=['GET', 'POST'])
 @admin_required
 def create_user():
     if request.method == 'POST':
@@ -997,4 +1022,4 @@ def delete_document(document_id):
     return redirect(url_for('self_onboarding'))
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=12000, debug=True)
+    app.run(host='0.0.0.0', port=12001, debug=True)
