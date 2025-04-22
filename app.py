@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from functools import wraps
@@ -6,6 +6,8 @@ from markupsafe import Markup
 import os
 import json
 import hashlib
+import uuid
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
@@ -18,7 +20,19 @@ app.config['SECRET_KEY'] = 'your-secret-key'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///employees.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# File upload configuration
+app.config['UPLOAD_FOLDER'] = os.path.join(app.static_folder, 'uploads')
+app.config['PROFILE_PICTURES_FOLDER'] = os.path.join(app.config['UPLOAD_FOLDER'], 'profile_pictures')
+app.config['DOCUMENTS_FOLDER'] = os.path.join(app.config['UPLOAD_FOLDER'], 'documents')
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+app.config['ALLOWED_DOCUMENT_EXTENSIONS'] = {'pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'}
+app.config['ALLOWED_IMAGE_EXTENSIONS'] = {'jpg', 'jpeg', 'png', 'gif'}
+
 db = SQLAlchemy(app)
+
+# Helper function to check if file extension is allowed
+def allowed_file(filename, allowed_extensions):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
 
 # Login required decorator
 def login_required(f):
@@ -95,6 +109,18 @@ class Certification(db.Model):
     def __repr__(self):
         return f'<Certification {self.name} from {self.issuing_organization}>'
 
+# Document model for storing employee documents
+class Document(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employee.id'), nullable=False)
+    filename = db.Column(db.String(255), nullable=False)
+    original_filename = db.Column(db.String(255), nullable=False)
+    document_type = db.Column(db.String(50), nullable=False)  # certificate, experience_letter, offer_letter, etc.
+    upload_date = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def __repr__(self):
+        return f'<Document {self.document_type}: {self.original_filename}>'
+
 # Employee model - updated with new fields
 class Employee(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -108,6 +134,7 @@ class Employee(db.Model):
     hire_date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
     current_address = db.Column(db.String(200), nullable=False)  # Renamed from address
     permanent_address = db.Column(db.String(200), nullable=True)  # Added permanent address
+    profile_picture = db.Column(db.String(255), nullable=True)  # Store filename of profile picture
     salary = db.Column(db.Float, default=0)
     notes = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -115,6 +142,7 @@ class Employee(db.Model):
     # Relationships
     educations = db.relationship('Education', backref='employee', lazy=True, cascade="all, delete-orphan")
     certifications = db.relationship('Certification', backref='employee', lazy=True, cascade="all, delete-orphan")
+    documents = db.relationship('Document', backref='employee', lazy=True, cascade="all, delete-orphan")
     
     def __repr__(self):
         return f'<Employee {self.first_name} {self.last_name}>'
@@ -558,6 +586,7 @@ def self_onboarding():
         employee = Employee.query.get(user.employee_id)
         educations = Education.query.filter_by(employee_id=employee.id).all()
         certifications = Certification.query.filter_by(employee_id=employee.id).all()
+        documents = Document.query.filter_by(employee_id=employee.id).all()
         
         # Get all unique departments for the dropdown
         departments = db.session.query(Employee.department).distinct().all()
@@ -572,6 +601,51 @@ def self_onboarding():
             employee.phone = request.form['phone']
             employee.current_address = request.form['current_address']
             employee.permanent_address = request.form.get('permanent_address', '')
+            
+            # Handle profile picture upload
+            if 'profile_picture' in request.files and request.files['profile_picture'].filename:
+                profile_pic = request.files['profile_picture']
+                if profile_pic and allowed_file(profile_pic.filename, app.config['ALLOWED_IMAGE_EXTENSIONS']):
+                    # Create employee folder if it doesn't exist
+                    employee_folder = os.path.join(app.config['PROFILE_PICTURES_FOLDER'], f"{employee.employee_id}_{employee.first_name}_{employee.last_name}")
+                    os.makedirs(employee_folder, exist_ok=True)
+                    
+                    # Generate unique filename
+                    filename = secure_filename(profile_pic.filename)
+                    unique_filename = f"{uuid.uuid4().hex}_{filename}"
+                    file_path = os.path.join(employee_folder, unique_filename)
+                    
+                    # Save the file
+                    profile_pic.save(file_path)
+                    
+                    # Update employee record with the new profile picture
+                    employee.profile_picture = os.path.join(f"{employee.employee_id}_{employee.first_name}_{employee.last_name}", unique_filename)
+            
+            # Handle document uploads
+            for doc_type in ['certificate', 'experience_letter', 'offer_letter']:
+                if doc_type in request.files and request.files[doc_type].filename:
+                    doc_file = request.files[doc_type]
+                    if doc_file and allowed_file(doc_file.filename, app.config['ALLOWED_DOCUMENT_EXTENSIONS']):
+                        # Create employee document folder if it doesn't exist
+                        employee_folder = os.path.join(app.config['DOCUMENTS_FOLDER'], f"{employee.employee_id}_{employee.first_name}_{employee.last_name}")
+                        os.makedirs(employee_folder, exist_ok=True)
+                        
+                        # Generate unique filename
+                        filename = secure_filename(doc_file.filename)
+                        unique_filename = f"{doc_type}_{uuid.uuid4().hex}_{filename}"
+                        file_path = os.path.join(employee_folder, unique_filename)
+                        
+                        # Save the file
+                        doc_file.save(file_path)
+                        
+                        # Create document record
+                        document = Document(
+                            employee_id=employee.id,
+                            filename=os.path.join(f"{employee.employee_id}_{employee.first_name}_{employee.last_name}", unique_filename),
+                            original_filename=filename,
+                            document_type=doc_type
+                        )
+                        db.session.add(document)
             
             # Update education information
             # First, remove all existing education records for this employee
@@ -637,7 +711,12 @@ def self_onboarding():
             flash('Your profile has been updated successfully!', 'success')
             return redirect(url_for('self_onboarding'))
         
-        return render_template('self_onboarding.html', employee=employee, departments=departments, educations=educations, certifications=certifications)
+        return render_template('self_onboarding.html', 
+                              employee=employee, 
+                              departments=departments, 
+                              educations=educations, 
+                              certifications=certifications,
+                              documents=documents)
     else:
         # User doesn't have an employee profile yet, create a basic one
         if request.method == 'POST':
@@ -664,6 +743,53 @@ def self_onboarding():
             # Link employee to user
             user.employee_id = new_employee.id
             db.session.commit()
+            
+            # Handle profile picture upload
+            if 'profile_picture' in request.files and request.files['profile_picture'].filename:
+                profile_pic = request.files['profile_picture']
+                if profile_pic and allowed_file(profile_pic.filename, app.config['ALLOWED_IMAGE_EXTENSIONS']):
+                    # Create employee folder if it doesn't exist
+                    employee_folder = os.path.join(app.config['PROFILE_PICTURES_FOLDER'], f"{new_employee.employee_id}_{new_employee.first_name}_{new_employee.last_name}")
+                    os.makedirs(employee_folder, exist_ok=True)
+                    
+                    # Generate unique filename
+                    filename = secure_filename(profile_pic.filename)
+                    unique_filename = f"{uuid.uuid4().hex}_{filename}"
+                    file_path = os.path.join(employee_folder, unique_filename)
+                    
+                    # Save the file
+                    profile_pic.save(file_path)
+                    
+                    # Update employee record with the new profile picture
+                    new_employee.profile_picture = os.path.join(f"{new_employee.employee_id}_{new_employee.first_name}_{new_employee.last_name}", unique_filename)
+                    db.session.commit()
+            
+            # Handle document uploads
+            for doc_type in ['certificate', 'experience_letter', 'offer_letter']:
+                if doc_type in request.files and request.files[doc_type].filename:
+                    doc_file = request.files[doc_type]
+                    if doc_file and allowed_file(doc_file.filename, app.config['ALLOWED_DOCUMENT_EXTENSIONS']):
+                        # Create employee document folder if it doesn't exist
+                        employee_folder = os.path.join(app.config['DOCUMENTS_FOLDER'], f"{new_employee.employee_id}_{new_employee.first_name}_{new_employee.last_name}")
+                        os.makedirs(employee_folder, exist_ok=True)
+                        
+                        # Generate unique filename
+                        filename = secure_filename(doc_file.filename)
+                        unique_filename = f"{doc_type}_{uuid.uuid4().hex}_{filename}"
+                        file_path = os.path.join(employee_folder, unique_filename)
+                        
+                        # Save the file
+                        doc_file.save(file_path)
+                        
+                        # Create document record
+                        document = Document(
+                            employee_id=new_employee.id,
+                            filename=os.path.join(f"{new_employee.employee_id}_{new_employee.first_name}_{new_employee.last_name}", unique_filename),
+                            original_filename=filename,
+                            document_type=doc_type
+                        )
+                        db.session.add(document)
+                        db.session.commit()
             
             # Process education information if provided
             education_count = int(request.form.get('education_count', 0))
@@ -741,7 +867,8 @@ def self_onboarding():
                               employee=placeholder_employee, 
                               departments=departments, 
                               educations=[], 
-                              certifications=[])
+                              certifications=[],
+                              documents=[])
 
 @app.route('/create-user', methods=['GET', 'POST'])
 @admin_required
@@ -811,6 +938,63 @@ def register():
         return redirect(url_for('login'))
     
     return render_template('register.html')
+
+# Route to serve uploaded files
+@app.route('/uploads/<path:filename>')
+@login_required
+def uploaded_file(filename):
+    # Check if user is authorized to access this file
+    user = User.query.filter_by(username=session.get('username')).first()
+    
+    # Admin can access any file
+    if session.get('is_admin', False):
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    
+    # Regular user can only access their own files
+    if user and user.employee_id:
+        employee = Employee.query.get(user.employee_id)
+        
+        # Check if the file belongs to this employee
+        if employee:
+            employee_folder_prefix = f"{employee.employee_id}_{employee.first_name}_{employee.last_name}"
+            if filename.startswith(employee_folder_prefix):
+                return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    
+    # If not authorized
+    flash('You are not authorized to access this file', 'danger')
+    return redirect(url_for('index'))
+
+# Route to delete a document
+@app.route('/delete-document/<int:document_id>', methods=['POST'])
+@login_required
+def delete_document(document_id):
+    document = Document.query.get_or_404(document_id)
+    
+    # Check if user is authorized to delete this document
+    user = User.query.filter_by(username=session.get('username')).first()
+    
+    # Admin can delete any document
+    is_authorized = session.get('is_admin', False)
+    
+    # Regular user can only delete their own documents
+    if not is_authorized and user and user.employee_id:
+        is_authorized = document.employee_id == user.employee_id
+    
+    if not is_authorized:
+        flash('You are not authorized to delete this document', 'danger')
+        return redirect(url_for('index'))
+    
+    # Delete the file from the filesystem
+    file_path = os.path.join(app.config['DOCUMENTS_FOLDER'], document.filename)
+    if os.path.exists(file_path):
+        os.remove(file_path)
+    
+    # Delete the document record
+    db.session.delete(document)
+    db.session.commit()
+    
+    flash('Document deleted successfully', 'success')
+    return redirect(url_for('self_onboarding'))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=12000, debug=True)
