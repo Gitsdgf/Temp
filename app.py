@@ -885,7 +885,7 @@ def self_onboarding():
                             
                             if not new_employee.drive_folder_id:
                                 employee_folder_id = drive_helper.create_folder(
-                                    employee_folder_name, 
+                                    folder_name=employee_folder_name, 
                                     parent_id=drive_helper.root_folder_id
                                 )
                                 # Update employee record with folder ID
@@ -895,12 +895,24 @@ def self_onboarding():
                                 employee_folder_id = new_employee.drive_folder_id
                             
                             # Upload profile picture to Google Drive
+                            # Save file temporarily to disk
+                            temp_file_path = os.path.join(app.config['PROFILE_PICTURES_FOLDER'], 'temp', unique_filename)
+                            os.makedirs(os.path.dirname(temp_file_path), exist_ok=True)
+                            profile_pic.save(temp_file_path)
+                            
+                            # Upload to Google Drive
                             drive_file_id = drive_helper.upload_file(
-                                profile_pic,
-                                filename=unique_filename,
-                                mime_type=profile_pic.content_type,
-                                parent_id=employee_folder_id
+                                file_path=temp_file_path,
+                                file_name=unique_filename,
+                                parent_folder_id=employee_folder_id,
+                                mime_type=profile_pic.content_type
                             )
+                            
+                            # Remove temporary file
+                            try:
+                                os.remove(temp_file_path)
+                            except:
+                                pass
                             
                             # Update employee record with the Drive file ID
                             new_employee.drive_profile_pic_id = drive_file_id
@@ -936,7 +948,7 @@ def self_onboarding():
                                 # Create or get employee folder in Google Drive
                                 if not new_employee.drive_folder_id:
                                     employee_folder_id = drive_helper.create_folder(
-                                        employee_folder_name, 
+                                        folder_name=employee_folder_name, 
                                         parent_id=drive_helper.root_folder_id
                                     )
                                     # Update employee record with folder ID
@@ -946,12 +958,24 @@ def self_onboarding():
                                     employee_folder_id = new_employee.drive_folder_id
                                 
                                 # Upload file to Google Drive
+                                # Save file temporarily to disk
+                                temp_file_path = os.path.join(app.config['DOCUMENTS_FOLDER'], 'temp', unique_filename)
+                                os.makedirs(os.path.dirname(temp_file_path), exist_ok=True)
+                                doc_file.save(temp_file_path)
+                                
+                                # Upload to Google Drive
                                 drive_file_id = drive_helper.upload_file(
-                                    doc_file,
-                                    filename=unique_filename,
-                                    mime_type=doc_file.content_type,
-                                    parent_id=employee_folder_id
+                                    file_path=temp_file_path,
+                                    file_name=unique_filename,
+                                    parent_folder_id=employee_folder_id,
+                                    mime_type=doc_file.content_type
                                 )
+                                
+                                # Remove temporary file
+                                try:
+                                    os.remove(temp_file_path)
+                                except:
+                                    pass
                             
                             # Also save locally as backup
                             employee_folder = os.path.join(app.config['DOCUMENTS_FOLDER'], f"{new_employee.employee_id}_{new_employee.first_name}_{new_employee.last_name}")

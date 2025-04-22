@@ -142,6 +142,7 @@ class GoogleDriveHelper:
             File ID of the uploaded file, or None if upload failed
         """
         if not self.is_enabled():
+            print("Google Drive is not enabled. Skipping upload.")
             return None
             
         try:
@@ -150,6 +151,7 @@ class GoogleDriveHelper:
                 return None
                 
             file_name = file_name or os.path.basename(file_path)
+            print(f"Uploading file: {file_path} as {file_name} to folder ID: {parent_folder_id}")
             
             file_metadata = {
                 'name': file_name
@@ -158,22 +160,36 @@ class GoogleDriveHelper:
             if parent_folder_id:
                 file_metadata['parents'] = [parent_folder_id]
             
+            # Check file size
+            file_size = os.path.getsize(file_path)
+            print(f"File size: {file_size} bytes")
+            
+            # Use chunked upload for larger files
             media = MediaFileUpload(
                 file_path,
                 mimetype=mime_type,
-                resumable=True
+                resumable=True,
+                chunksize=1024*1024  # 1MB chunks
             )
             
+            print("Creating file in Google Drive...")
             file = self.drive_service.files().create(
                 body=file_metadata,
                 media_body=media,
                 fields='id'
             ).execute()
             
-            return file.get('id')
+            file_id = file.get('id')
+            print(f"File uploaded successfully. File ID: {file_id}")
+            return file_id
             
         except HttpError as e:
-            print(f"Error uploading file to Google Drive: {str(e)}")
+            print(f"HTTP Error uploading file to Google Drive: {str(e)}")
+            return None
+        except Exception as e:
+            print(f"Unexpected error uploading file to Google Drive: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def upload_file_from_memory(self, file_content, file_name, parent_folder_id=None, mime_type=None):
@@ -190,9 +206,12 @@ class GoogleDriveHelper:
             File ID of the uploaded file, or None if upload failed
         """
         if not self.is_enabled():
+            print("Google Drive is not enabled. Skipping upload.")
             return None
             
         try:
+            print(f"Uploading file from memory: {file_name} to folder ID: {parent_folder_id}")
+            
             file_metadata = {
                 'name': file_name
             }
@@ -203,22 +222,32 @@ class GoogleDriveHelper:
             if isinstance(file_content, bytes):
                 file_content = io.BytesIO(file_content)
                 
+            # Use chunked upload for better reliability
             media = MediaIoBaseUpload(
                 file_content,
                 mimetype=mime_type,
-                resumable=True
+                resumable=True,
+                chunksize=1024*1024  # 1MB chunks
             )
             
+            print("Creating file in Google Drive...")
             file = self.drive_service.files().create(
                 body=file_metadata,
                 media_body=media,
                 fields='id'
             ).execute()
             
-            return file.get('id')
+            file_id = file.get('id')
+            print(f"File uploaded successfully. File ID: {file_id}")
+            return file_id
             
         except HttpError as e:
-            print(f"Error uploading file to Google Drive: {str(e)}")
+            print(f"HTTP Error uploading file to Google Drive: {str(e)}")
+            return None
+        except Exception as e:
+            print(f"Unexpected error uploading file to Google Drive: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def get_file_url(self, file_id):
