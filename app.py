@@ -557,7 +557,7 @@ def add_employee():
 @app.route('/employee/<int:id>')
 @login_required
 def employee_details(id):
-    employee = db.session.get_or_404(Employee, id)
+    employee = Employee.query.get_or_404(id)
     educations = Education.query.filter_by(employee_id=id).all()
     certifications = Certification.query.filter_by(employee_id=id).all()
     return render_template('employee_details.html', employee=employee, educations=educations, certifications=certifications)
@@ -565,7 +565,7 @@ def employee_details(id):
 @app.route('/employee/<int:id>/edit', methods=['GET', 'POST'])
 @admin_required
 def edit_employee(id):
-    employee = db.session.get_or_404(Employee, id)
+    employee = Employee.query.get_or_404(id)
     
     # Get all unique departments for the dropdown
     departments = db.session.query(Employee.department).distinct().all()
@@ -672,7 +672,7 @@ def edit_employee(id):
 @app.route('/employee/<int:id>/delete', methods=['POST'])
 @admin_required
 def delete_employee(id):
-    employee = db.session.get_or_404(Employee, id)
+    employee = Employee.query.get_or_404(id)
     db.session.delete(employee)
     db.session.commit()
     flash('Employee deleted successfully!', 'success')
@@ -1181,7 +1181,7 @@ def uploaded_file(filename):
 @app.route('/delete-document/<int:document_id>', methods=['POST'])
 @login_required
 def delete_document(document_id):
-    document = db.session.get_or_404(Document, document_id)
+    document = Document.query.get_or_404(document_id)
     
     # Check if user is authorized to delete this document
     user = User.query.filter_by(username=session.get('username')).first()
