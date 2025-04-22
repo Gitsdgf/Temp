@@ -1,13 +1,11 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from functools import wraps
-from werkzeug.utils import secure_filename
-import os
 from markupsafe import Markup
+import os
 import json
 import hashlib
-import uuid
 
 app = Flask(__name__)
 
@@ -19,12 +17,6 @@ def nl2br(value):
 app.config['SECRET_KEY'] = 'your-secret-key'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///employees.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-# File upload configuration
-app.config['UPLOAD_FOLDER_PHOTOS'] = os.path.join(app.root_path, 'static', 'uploads', 'photos')
-app.config['UPLOAD_FOLDER_DOCUMENTS'] = os.path.join(app.root_path, 'static', 'uploads', 'documents')
-app.config['ALLOWED_EXTENSIONS_PHOTOS'] = {'png', 'jpg', 'jpeg', 'gif'}
-app.config['ALLOWED_EXTENSIONS_DOCUMENTS'] = {'pdf', 'doc', 'docx', 'txt'}
 
 db = SQLAlchemy(app)
 
@@ -55,23 +47,6 @@ class User(db.Model):
     def check_password(self, password):
         return self.password_hash == hashlib.sha256(password.encode()).hexdigest()
 
-# File upload helper functions
-def allowed_file_photo(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS_PHOTOS']
-
-def allowed_file_document(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS_DOCUMENTS']
-
-def save_file(file, folder):
-    if file and file.filename:
-        filename = secure_filename(file.filename)
-        # Generate a unique filename to avoid overwriting
-        unique_filename = f"{uuid.uuid4().hex}_{filename}"
-        file_path = os.path.join(folder, unique_filename)
-        file.save(file_path)
-        return os.path.join('uploads', 'photos' if folder == app.config['UPLOAD_FOLDER_PHOTOS'] else 'documents', unique_filename)
-    return None
-
 # Employee model - simplified version
 class Employee(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -85,9 +60,6 @@ class Employee(db.Model):
     address = db.Column(db.String(200), nullable=False)
     salary = db.Column(db.Float, default=0)
     notes = db.Column(db.Text, nullable=True)
-    photo = db.Column(db.String(255), nullable=True)  # Path to the photo file
-    education_background = db.Column(db.Text, nullable=True)  # Education details
-    education_document = db.Column(db.String(255), nullable=True)  # Path to education document
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     def __repr__(self):
@@ -273,25 +245,6 @@ def add_employee():
             flash('Email already exists!', 'danger')
             return redirect(url_for('add_employee'))
         
-        # Handle file uploads
-        photo_path = None
-        education_doc_path = None
-        
-        # Process photo upload
-        if 'photo' in request.files:
-            photo_file = request.files['photo']
-            if photo_file and photo_file.filename and allowed_file_photo(photo_file.filename):
-                photo_path = save_file(photo_file, app.config['UPLOAD_FOLDER_PHOTOS'])
-        
-        # Process education document upload
-        if 'education_document' in request.files:
-            doc_file = request.files['education_document']
-            if doc_file and doc_file.filename and allowed_file_document(doc_file.filename):
-                education_doc_path = save_file(doc_file, app.config['UPLOAD_FOLDER_DOCUMENTS'])
-        
-        # Get education background
-        education_background = request.form.get('education_background', '')
-        
         # Create new employee
         new_employee = Employee(
             first_name=first_name,
@@ -303,10 +256,7 @@ def add_employee():
             hire_date=hire_date,
             address=address,
             salary=salary,
-            notes=notes,
-            photo=photo_path,
-            education_background=education_background,
-            education_document=education_doc_path
+            notes=notes
         )
         
         # Add to database
@@ -352,53 +302,6 @@ def edit_employee(id):
             employee.salary = float(salary) if salary else 0
         except ValueError:
             employee.salary = 0
-            
-        # Handle education background
-        employee.education_background = request.form.get('education_background', '')
-        
-        # Handle photo upload or removal
-        if 'remove_photo' in request.form:
-            # If the employee has a photo and the remove checkbox is checked
-            if employee.photo:
-                # Delete the file from the filesystem
-                try:
-                    os.remove(os.path.join(app.root_path, 'static', employee.photo))
-                except:
-                    pass  # If file doesn't exist, just continue
-                employee.photo = None
-        elif 'photo' in request.files:
-            photo_file = request.files['photo']
-            if photo_file and photo_file.filename and allowed_file_photo(photo_file.filename):
-                # If employee already has a photo, delete the old one
-                if employee.photo:
-                    try:
-                        os.remove(os.path.join(app.root_path, 'static', employee.photo))
-                    except:
-                        pass  # If file doesn't exist, just continue
-                # Save the new photo
-                employee.photo = save_file(photo_file, app.config['UPLOAD_FOLDER_PHOTOS'])
-        
-        # Handle education document upload or removal
-        if 'remove_document' in request.form:
-            # If the employee has a document and the remove checkbox is checked
-            if employee.education_document:
-                # Delete the file from the filesystem
-                try:
-                    os.remove(os.path.join(app.root_path, 'static', employee.education_document))
-                except:
-                    pass  # If file doesn't exist, just continue
-                employee.education_document = None
-        elif 'education_document' in request.files:
-            doc_file = request.files['education_document']
-            if doc_file and doc_file.filename and allowed_file_document(doc_file.filename):
-                # If employee already has a document, delete the old one
-                if employee.education_document:
-                    try:
-                        os.remove(os.path.join(app.root_path, 'static', employee.education_document))
-                    except:
-                        pass  # If file doesn't exist, just continue
-                # Save the new document
-                employee.education_document = save_file(doc_file, app.config['UPLOAD_FOLDER_DOCUMENTS'])
         
         db.session.commit()
         flash('Employee updated successfully!', 'success')
@@ -422,4 +325,4 @@ def all_employees():
     return render_template('all_employees.html', employees=employees)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5002, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
