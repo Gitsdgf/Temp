@@ -50,6 +50,7 @@ class User(db.Model):
     password_hash = db.Column(db.String(128), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
     employee_id = db.Column(db.Integer, db.ForeignKey('employee.id'), nullable=True)
+    employee_code = db.Column(db.String(50), nullable=True)  # Store the employee ID code
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationship with Employee
@@ -725,7 +726,58 @@ def self_onboarding():
         departments = db.session.query(Employee.department).distinct().all()
         departments = [dept[0] for dept in departments]
         
-        return render_template('self_onboarding.html', employee=None, departments=departments, educations=[], certifications=[])
+        # Create a placeholder employee object to pre-fill the employee ID if available
+        placeholder_employee = None
+        
+        # Check if there's an employee with the same employee_id that was used during user creation
+        if user and user.employee_code:
+            # Find employee by employee_id
+            existing_employee = Employee.query.filter_by(employee_id=user.employee_code).first()
+            if not existing_employee:
+                # Create a placeholder to pre-fill the form
+                placeholder_employee = Employee(employee_id=user.employee_code)
+        
+        return render_template('self_onboarding.html', 
+                              employee=placeholder_employee, 
+                              departments=departments, 
+                              educations=[], 
+                              certifications=[])
+
+@app.route('/create-user', methods=['GET', 'POST'])
+@admin_required
+def create_user():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        employee_id = request.form['employee_id']
+        
+        # Check if username already exists
+        existing_user = User.query.filter_by(username=username).first()
+        if existing_user:
+            flash('Username already exists', 'danger')
+            return redirect(url_for('create_user'))
+        
+        # Check if employee_id already exists in Employee table
+        existing_employee = Employee.query.filter_by(employee_id=employee_id).first()
+        
+        # Create new user
+        new_user = User(username=username, is_admin=False, employee_code=employee_id)
+        new_user.set_password(password)
+        
+        # If employee exists, link the user to the employee
+        if existing_employee:
+            new_user.employee_id = existing_employee.id
+        
+        db.session.add(new_user)
+        db.session.commit()
+        
+        # Return to the same page with credentials to display in modal
+        return render_template('create_user.html', 
+                              new_username=username, 
+                              new_password=password, 
+                              new_employee_id=employee_id)
+    
+    return render_template('create_user.html')
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
