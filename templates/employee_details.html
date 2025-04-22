@@ -53,9 +53,16 @@
                                     <p class="ms-4">{{ employee.phone }}</p>
                                 </div>
                                 <div class="mb-2">
-                                    <p class="mb-1"><i class="bi bi-geo-alt me-2 text-primary"></i><strong>Address:</strong></p>
-                                    <p class="ms-4">{{ employee.address }}</p>
+                                    <p class="mb-1"><i class="bi bi-geo-alt me-2 text-primary"></i><strong>Current Address:</strong></p>
+                                    <p class="ms-4">{{ employee.current_address }}</p>
                                 </div>
+                                
+                                {% if employee.permanent_address %}
+                                <div class="mb-2">
+                                    <p class="mb-1"><i class="bi bi-house me-2 text-primary"></i><strong>Permanent Address:</strong></p>
+                                    <p class="ms-4">{{ employee.permanent_address }}</p>
+                                </div>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
@@ -66,9 +73,16 @@
                             </div>
                             <div class="card-body">
                                 <div class="mb-2">
-                                    <p class="mb-1"><i class="bi bi-person-badge me-2 text-info"></i><strong>Employee ID:</strong></p>
+                                    <p class="mb-1"><i class="bi bi-database me-2 text-info"></i><strong>Database ID:</strong></p>
                                     <p class="ms-4">{{ employee.id }}</p>
                                 </div>
+                                
+                                {% if employee.employee_id %}
+                                <div class="mb-2">
+                                    <p class="mb-1"><i class="bi bi-person-badge me-2 text-info"></i><strong>Employee ID:</strong></p>
+                                    <p class="ms-4">{{ employee.employee_id }}</p>
+                                </div>
+                                {% endif %}
                                 <div class="mb-2">
                                     <p class="mb-1"><i class="bi bi-building me-2 text-info"></i><strong>Department:</strong></p>
                                     <p class="ms-4">
@@ -95,6 +109,105 @@
                         </div>
                     </div>
                 </div>
+                
+                {% if educations %}
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="card border-primary">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="mb-0"><i class="bi bi-mortarboard me-2"></i>Education Background</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Institution</th>
+                                                <th>Degree</th>
+                                                <th>Field of Study</th>
+                                                <th>Duration</th>
+                                                <th>Description</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for education in educations %}
+                                            <tr>
+                                                <td>{{ education.institution }}</td>
+                                                <td>{{ education.degree }}</td>
+                                                <td>{{ education.field_of_study }}</td>
+                                                <td>
+                                                    {{ education.start_date.strftime('%b %Y') }} - 
+                                                    {% if education.end_date %}
+                                                        {{ education.end_date.strftime('%b %Y') }}
+                                                    {% else %}
+                                                        Present
+                                                    {% endif %}
+                                                </td>
+                                                <td>{{ education.description|default('', true)|nl2br }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if certifications %}
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="card border-info">
+                            <div class="card-header bg-info text-white">
+                                <h5 class="mb-0"><i class="bi bi-award me-2"></i>Certifications</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Certification</th>
+                                                <th>Issuing Organization</th>
+                                                <th>Issue Date</th>
+                                                <th>Expiry Date</th>
+                                                <th>Credential ID</th>
+                                                <th>URL</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for cert in certifications %}
+                                            <tr>
+                                                <td>{{ cert.name }}</td>
+                                                <td>{{ cert.issuing_organization }}</td>
+                                                <td>{{ cert.issue_date.strftime('%b %Y') }}</td>
+                                                <td>
+                                                    {% if cert.expiry_date %}
+                                                        {{ cert.expiry_date.strftime('%b %Y') }}
+                                                    {% else %}
+                                                        No Expiry
+                                                    {% endif %}
+                                                </td>
+                                                <td>{{ cert.credential_id|default('N/A', true) }}</td>
+                                                <td>
+                                                    {% if cert.credential_url %}
+                                                        <a href="{{ cert.credential_url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                                            <i class="bi bi-link-45deg"></i> View
+                                                        </a>
+                                                    {% else %}
+                                                        N/A
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
                 
                 {% if employee.notes %}
                 <div class="row mt-4">
