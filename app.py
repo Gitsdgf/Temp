@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import wraps
 from markupsafe import Markup
 import os
@@ -335,7 +335,7 @@ def index():
         
         # Check if user has an employee profile
         if user and user.employee_id:
-            employee = Employee.query.get(user.employee_id)
+            employee = db.session.get(Employee, user.employee_id)
             if employee:
                 educations = Education.query.filter_by(employee_id=employee.id).all()
                 certifications = Certification.query.filter_by(employee_id=employee.id).all()
@@ -382,7 +382,7 @@ def add_department():
             phone="N/A",
             department=department_name,
             position="Department Head",
-            hire_date=datetime.utcnow(),
+            hire_date=datetime.now(timezone.utc),
             salary=0,
             current_address="N/A",
             permanent_address="N/A",
@@ -557,7 +557,7 @@ def add_employee():
 @app.route('/employee/<int:id>')
 @login_required
 def employee_details(id):
-    employee = Employee.query.get_or_404(id)
+    employee = db.session.get_or_404(Employee, id)
     educations = Education.query.filter_by(employee_id=id).all()
     certifications = Certification.query.filter_by(employee_id=id).all()
     return render_template('employee_details.html', employee=employee, educations=educations, certifications=certifications)
@@ -565,7 +565,7 @@ def employee_details(id):
 @app.route('/employee/<int:id>/edit', methods=['GET', 'POST'])
 @admin_required
 def edit_employee(id):
-    employee = Employee.query.get_or_404(id)
+    employee = db.session.get_or_404(Employee, id)
     
     # Get all unique departments for the dropdown
     departments = db.session.query(Employee.department).distinct().all()
@@ -672,7 +672,7 @@ def edit_employee(id):
 @app.route('/employee/<int:id>/delete', methods=['POST'])
 @admin_required
 def delete_employee(id):
-    employee = Employee.query.get_or_404(id)
+    employee = db.session.get_or_404(Employee, id)
     db.session.delete(employee)
     db.session.commit()
     flash('Employee deleted successfully!', 'success')
@@ -701,7 +701,7 @@ def self_onboarding():
     
     # Check if user already has an employee profile
     if user.employee_id:
-        employee = Employee.query.get(user.employee_id)
+        employee = db.session.get(Employee, user.employee_id)
         educations = Education.query.filter_by(employee_id=employee.id).all()
         certifications = Certification.query.filter_by(employee_id=employee.id).all()
         documents = Document.query.filter_by(employee_id=employee.id).all()
@@ -853,7 +853,7 @@ def self_onboarding():
                 phone=request.form['phone'],
                 department=request.form.get('department', 'Unassigned'),
                 position=request.form.get('position', 'New Hire'),
-                hire_date=datetime.utcnow().date(),
+                hire_date=datetime.now(timezone.utc).date(),
                 current_address=request.form['current_address'],
                 permanent_address=request.form.get('permanent_address', ''),
                 salary=0,  # Salary will be set by admin
@@ -1103,7 +1103,7 @@ def uploaded_file(filename):
             
             # Regular user can only access their own files
             if user and user.employee_id:
-                employee = Employee.query.get(user.employee_id)
+                employee = db.session.get(Employee, user.employee_id)
                 if employee and employee.drive_folder_id:
                     # Check if file is in user's folder
                     if drive_helper.is_file_in_folder(file_id, employee.drive_folder_id):
@@ -1141,7 +1141,7 @@ def uploaded_file(filename):
     
     # Regular user can only access their own files
     if user and user.employee_id:
-        employee = Employee.query.get(user.employee_id)
+        employee = db.session.get(Employee, user.employee_id)
         
         # Check if the file belongs to this employee
         if employee:
@@ -1157,7 +1157,7 @@ def uploaded_file(filename):
 @app.route('/delete-document/<int:document_id>', methods=['POST'])
 @login_required
 def delete_document(document_id):
-    document = Document.query.get_or_404(document_id)
+    document = db.session.get_or_404(Document, document_id)
     
     # Check if user is authorized to delete this document
     user = User.query.filter_by(username=session.get('username')).first()
