@@ -1,0 +1,98 @@
+nohup: ignoring input
+/workspace/employee_management_app/app.py:1: DeprecationWarning: 'flask.Markup' is deprecated and will be removed in Flask 2.4. Import 'markupsafe.Markup' instead.
+  from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, Markup
+ * Serving Flask app 'app'
+ * Debug mode: on
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:12002
+ * Running on http://10.2.20.11:12002
+[33mPress CTRL+C to quit[0m
+ * Restarting with stat
+/workspace/employee_management_app/app.py:1: DeprecationWarning: 'flask.Markup' is deprecated and will be removed in Flask 2.4. Import 'markupsafe.Markup' instead.
+  from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, Markup
+ * Debugger is active!
+ * Debugger PIN: 564-421-135
+127.0.0.1 - - [22/Apr/2025 09:09:46] "GET /employee/5 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Apr/2025 09:09:46] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Apr/2025 09:09:52] "GET /employee/5/edit HTTP/1.1" 200 -
+127.0.0.1 - - [22/Apr/2025 09:09:52] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Apr/2025 09:10:00] "GET /employee/5 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Apr/2025 09:10:00] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Apr/2025 09:10:07] "GET /add HTTP/1.1" 200 -
+127.0.0.1 - - [22/Apr/2025 09:10:07] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Apr/2025 09:10:14] "GET /employee/1/edit HTTP/1.1" 200 -
+127.0.0.1 - - [22/Apr/2025 09:10:14] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Apr/2025 09:10:21] "GET /employee/1 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Apr/2025 09:10:21] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Apr/2025 09:10:28] "GET /add HTTP/1.1" 200 -
+127.0.0.1 - - [22/Apr/2025 09:10:28] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Apr/2025 09:10:34] "GET /employee/1/edit HTTP/1.1" 200 -
+127.0.0.1 - - [22/Apr/2025 09:10:34] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Apr/2025 09:10:40] "GET /add HTTP/1.1" 200 -
+127.0.0.1 - - [22/Apr/2025 09:10:40] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Apr/2025 09:11:41] "GET /positions?q=Senior%20Developer HTTP/1.1" 200 -
+127.0.0.1 - - [22/Apr/2025 09:12:26] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [22/Apr/2025 09:12:26] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Apr/2025 09:12:31] "GET /add HTTP/1.1" 200 -
+127.0.0.1 - - [22/Apr/2025 09:12:31] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Apr/2025 09:12:35] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [22/Apr/2025 09:12:35] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Apr/2025 09:12:40] "GET /add HTTP/1.1" 200 -
+127.0.0.1 - - [22/Apr/2025 09:12:40] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Apr/2025 09:12:45] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [22/Apr/2025 09:12:45] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Apr/2025 09:12:49] "GET /add HTTP/1.1" 200 -
+127.0.0.1 - - [22/Apr/2025 09:12:49] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Apr/2025 09:12:56] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [22/Apr/2025 09:12:56] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Apr/2025 09:13:06] "GET /add HTTP/1.1" 200 -
+127.0.0.1 - - [22/Apr/2025 09:13:06] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Apr/2025 09:13:13] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [22/Apr/2025 09:13:13] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Apr/2025 09:13:18] "GET /add HTTP/1.1" 200 -
+127.0.0.1 - - [22/Apr/2025 09:13:18] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Apr/2025 09:13:23] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [22/Apr/2025 09:13:23] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Apr/2025 09:13:42] "GET /add HTTP/1.1" 200 -
+127.0.0.1 - - [22/Apr/2025 09:13:42] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Apr/2025 09:14:13] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [22/Apr/2025 09:14:13] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Apr/2025 09:14:18] "GET /add HTTP/1.1" 200 -
+127.0.0.1 - - [22/Apr/2025 09:14:18] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+ * Detected change in '/workspace/employee_management_app/app.py', reloading
+ * Restarting with stat
+/workspace/employee_management_app/app.py:1: DeprecationWarning: 'flask.Markup' is deprecated and will be removed in Flask 2.4. Import 'markupsafe.Markup' instead.
+  from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, Markup
+ * Debugger is active!
+ * Debugger PIN: 564-421-135
+ * Detected change in '/workspace/employee_management_app/app.py', reloading
+ * Restarting with stat
+/workspace/employee_management_app/app.py:1: DeprecationWarning: 'flask.Markup' is deprecated and will be removed in Flask 2.4. Import 'markupsafe.Markup' instead.
+  from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, Markup, send_from_directory
+ * Debugger is active!
+ * Debugger PIN: 564-421-135
+ * Detected change in '/workspace/employee_management_app/app.py', reloading
+ * Restarting with stat
+/workspace/employee_management_app/app.py:1: DeprecationWarning: 'flask.Markup' is deprecated and will be removed in Flask 2.4. Import 'markupsafe.Markup' instead.
+  from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, Markup, send_from_directory
+ * Debugger is active!
+ * Debugger PIN: 564-421-135
+ * Detected change in '/workspace/employee_management_app/app.py', reloading
+ * Restarting with stat
+/workspace/employee_management_app/app.py:1: DeprecationWarning: 'flask.Markup' is deprecated and will be removed in Flask 2.4. Import 'markupsafe.Markup' instead.
+  from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, Markup, send_from_directory
+ * Debugger is active!
+ * Debugger PIN: 564-421-135
+ * Detected change in '/workspace/employee_management_app/app.py', reloading
+ * Restarting with stat
+/workspace/employee_management_app/app.py:1: DeprecationWarning: 'flask.Markup' is deprecated and will be removed in Flask 2.4. Import 'markupsafe.Markup' instead.
+  from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, Markup, send_from_directory
+ * Debugger is active!
+ * Debugger PIN: 564-421-135
+ * Detected change in '/workspace/employee_management_app/app.py', reloading
+ * Restarting with stat
+/workspace/employee_management_app/app.py:1: DeprecationWarning: 'flask.Markup' is deprecated and will be removed in Flask 2.4. Import 'markupsafe.Markup' instead.
+  from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, Markup, send_from_directory
+ * Debugger is active!
+ * Debugger PIN: 564-421-135
