@@ -56,6 +56,41 @@ class GoogleDriveHelper:
         """Check if Google Drive integration is enabled."""
         return self.drive_service is not None
     
+    def create_folder(self, folder_name, parent_id=None):
+        """
+        Create a folder in Google Drive.
+        
+        Args:
+            folder_name: Name of the folder to create
+            parent_id: ID of the parent folder (optional)
+            
+        Returns:
+            Folder ID of the created folder
+        """
+        if not self.is_enabled():
+            return None
+            
+        try:
+            # Create the folder
+            folder_metadata = {
+                'name': folder_name,
+                'mimeType': 'application/vnd.google-apps.folder'
+            }
+            
+            if parent_id:
+                folder_metadata['parents'] = [parent_id]
+                
+            folder = self.drive_service.files().create(
+                body=folder_metadata,
+                fields='id'
+            ).execute()
+            
+            return folder.get('id')
+            
+        except HttpError as e:
+            print(f"Error creating folder in Google Drive: {str(e)}")
+            return None
+    
     def create_folder_if_not_exists(self, folder_name, parent_id=None):
         """
         Create a folder in Google Drive if it doesn't exist.
@@ -87,20 +122,7 @@ class GoogleDriveHelper:
                 return response['files'][0]['id']
             
             # If folder doesn't exist, create it
-            folder_metadata = {
-                'name': folder_name,
-                'mimeType': 'application/vnd.google-apps.folder'
-            }
-            
-            if parent_id:
-                folder_metadata['parents'] = [parent_id]
-                
-            folder = self.drive_service.files().create(
-                body=folder_metadata,
-                fields='id'
-            ).execute()
-            
-            return folder.get('id')
+            return self.create_folder(folder_name, parent_id)
             
         except HttpError as e:
             print(f"Error creating folder in Google Drive: {str(e)}")
