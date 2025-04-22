@@ -75,17 +75,39 @@
                     <div class="card-body">
                         <div class="row mb-2">
                             <div class="col-4 fw-bold">Username:</div>
-                            <div class="col-8">{{ new_username }}</div>
+                            <div class="col-7">{{ new_username }}</div>
+                            <div class="col-1">
+                                <button type="button" class="btn btn-sm btn-outline-secondary copy-btn" data-clipboard-text="{{ new_username }}">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                            </div>
                         </div>
                         <div class="row mb-2">
                             <div class="col-4 fw-bold">Password:</div>
-                            <div class="col-8">{{ new_password }}</div>
+                            <div class="col-7">{{ new_password }}</div>
+                            <div class="col-1">
+                                <button type="button" class="btn btn-sm btn-outline-secondary copy-btn" data-clipboard-text="{{ new_password }}">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                            </div>
                         </div>
                         <div class="row">
                             <div class="col-4 fw-bold">Employee ID:</div>
-                            <div class="col-8">{{ new_employee_id }}</div>
+                            <div class="col-7">{{ new_employee_id }}</div>
+                            <div class="col-1">
+                                <button type="button" class="btn btn-sm btn-outline-secondary copy-btn" data-clipboard-text="{{ new_employee_id }}">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
+                </div>
+                
+                <div class="d-grid mb-3">
+                    <button type="button" class="btn btn-outline-primary copy-all-btn" 
+                            data-clipboard-text="Username: {{ new_username }}&#10;Password: {{ new_password }}&#10;Employee ID: {{ new_employee_id }}">
+                        <i class="bi bi-clipboard-check me-2"></i>Copy All Credentials
+                    </button>
                 </div>
                 
                 <div class="alert alert-warning">
@@ -105,12 +127,37 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/clipboard@2.0.11/dist/clipboard.min.js"></script>
 <script>
     // Show modal if credentials are available
     document.addEventListener('DOMContentLoaded', function() {
         {% if new_username and new_password %}
         var userCreatedModal = new bootstrap.Modal(document.getElementById('userCreatedModal'));
         userCreatedModal.show();
+        
+        // Initialize clipboard.js for individual copy buttons
+        var clipboard = new ClipboardJS('.copy-btn');
+        clipboard.on('success', function(e) {
+            // Change button icon temporarily to show success
+            var originalHTML = e.trigger.innerHTML;
+            e.trigger.innerHTML = '<i class="bi bi-check-lg"></i>';
+            setTimeout(function() {
+                e.trigger.innerHTML = originalHTML;
+            }, 1000);
+            e.clearSelection();
+        });
+        
+        // Initialize clipboard.js for copy all button
+        var clipboardAll = new ClipboardJS('.copy-all-btn');
+        clipboardAll.on('success', function(e) {
+            // Change button text temporarily to show success
+            var originalHTML = e.trigger.innerHTML;
+            e.trigger.innerHTML = '<i class="bi bi-check-lg me-2"></i>Copied!';
+            setTimeout(function() {
+                e.trigger.innerHTML = originalHTML;
+            }, 1000);
+            e.clearSelection();
+        });
         {% endif %}
     });
 </script>

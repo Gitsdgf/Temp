@@ -36,8 +36,8 @@
                                 <div class="mb-3">
                                     <div class="d-flex">
                                         <div class="flex-shrink-0">
-                                            {% if employee.profile_picture %}
-                                            <img src="{{ url_for('uploaded_file', filename=employee.profile_picture) }}" alt="Profile Picture" class="rounded-circle" style="width: 80px; height: 80px; object-fit: cover;">
+                                            {% if employee.profile_picture or employee.drive_profile_pic_id %}
+                                            <img src="{{ employee.get_profile_picture_url() }}" alt="Profile Picture" class="rounded-circle" style="width: 80px; height: 80px; object-fit: cover;">
                                             {% else %}
                                             <i class="bi bi-person-circle fs-1 text-primary"></i>
                                             {% endif %}
@@ -239,7 +239,7 @@
                                                 <td>{{ document.original_filename }}</td>
                                                 <td>{{ document.upload_date.strftime('%Y-%m-%d %H:%M') }}</td>
                                                 <td>
-                                                    <a href="{{ url_for('uploaded_file', filename=document.filename) }}" class="btn btn-sm btn-outline-primary" target="_blank">
+                                                    <a href="{{ document.get_url() }}" class="btn btn-sm btn-outline-primary" target="_blank">
                                                         <i class="bi bi-eye me-1"></i>View
                                                     </a>
                                                 </td>

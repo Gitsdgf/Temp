@@ -8,6 +8,7 @@ import json
 import hashlib
 import uuid
 from werkzeug.utils import secure_filename
+from google_drive_helper import GoogleDriveHelper
 
 app = Flask(__name__)
 
@@ -16,21 +17,48 @@ app = Flask(__name__)
 def nl2br(value):
     if value:
         return Markup(value.replace('\n', '<br>'))
-app.config['SECRET_KEY'] = 'your-secret-key'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///employees.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Load configuration from config.py
+try:
+    app.config.from_object('config')
+except ImportError:
+    # Fallback configuration if config.py doesn't exist
+    app.config['SECRET_KEY'] = 'your-secret-key'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///employees.db'
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max upload size
+    app.config['GOOGLE_DRIVE_ENABLED'] = False
+    
+    # File upload configuration
+    app.config['UPLOAD_FOLDER'] = os.path.join(app.static_folder, 'uploads')
+    app.config['PROFILE_PICTURES_FOLDER'] = os.path.join(app.config['UPLOAD_FOLDER'], 'profile_pictures')
+    app.config['DOCUMENTS_FOLDER'] = os.path.join(app.config['UPLOAD_FOLDER'], 'documents')
 
 # Increase request body size limit for file uploads
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app)
-app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
 
-# File upload configuration
-app.config['UPLOAD_FOLDER'] = os.path.join(app.static_folder, 'uploads')
-app.config['PROFILE_PICTURES_FOLDER'] = os.path.join(app.config['UPLOAD_FOLDER'], 'profile_pictures')
-app.config['DOCUMENTS_FOLDER'] = os.path.join(app.config['UPLOAD_FOLDER'], 'documents')
+# Set up upload folders if not defined in config
+if 'UPLOAD_FOLDER' not in app.config:
+    app.config['UPLOAD_FOLDER'] = os.path.join(app.static_folder, 'uploads')
+    app.config['PROFILE_PICTURES_FOLDER'] = os.path.join(app.config['UPLOAD_FOLDER'], 'profile_pictures')
+    app.config['DOCUMENTS_FOLDER'] = os.path.join(app.config['UPLOAD_FOLDER'], 'documents')
+
+# File type configuration
 app.config['ALLOWED_DOCUMENT_EXTENSIONS'] = {'pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'}
 app.config['ALLOWED_IMAGE_EXTENSIONS'] = {'jpg', 'jpeg', 'png', 'gif'}
+
+# Initialize Google Drive helper
+drive_helper = None
+if app.config.get('GOOGLE_DRIVE_ENABLED', False):
+    try:
+        credentials_file = app.config.get('GOOGLE_DRIVE_CREDENTIALS_FILE')
+        root_folder_name = app.config.get('GOOGLE_DRIVE_ROOT_FOLDER_NAME', 'Employee Management System')
+        drive_helper = GoogleDriveHelper(credentials_file, root_folder_name)
+        app.logger.info("Google Drive integration enabled")
+    except Exception as e:
+        app.logger.error(f"Failed to initialize Google Drive: {str(e)}")
+        app.config['GOOGLE_DRIVE_ENABLED'] = False
 
 db = SQLAlchemy(app)
 
@@ -121,9 +149,17 @@ class Document(db.Model):
     original_filename = db.Column(db.String(255), nullable=False)
     document_type = db.Column(db.String(50), nullable=False)  # certificate, experience_letter, offer_letter, etc.
     upload_date = db.Column(db.DateTime, default=datetime.utcnow)
+    drive_file_id = db.Column(db.String(255), nullable=True)  # Google Drive file ID
     
     def __repr__(self):
         return f'<Document {self.document_type}: {self.original_filename}>'
+    
+    def get_url(self):
+        """Get the URL for the document, either from Google Drive or local storage."""
+        if self.drive_file_id and drive_helper.is_enabled():
+            return drive_helper.get_file_url(self.drive_file_id)
+        else:
+            return url_for('uploaded_file', filename=self.filename, file_type='documents')
 
 # Employee model - updated with new fields
 class Employee(db.Model):
@@ -139,6 +175,8 @@ class Employee(db.Model):
     current_address = db.Column(db.String(200), nullable=False)  # Renamed from address
     permanent_address = db.Column(db.String(200), nullable=True)  # Added permanent address
     profile_picture = db.Column(db.String(255), nullable=True)  # Store filename of profile picture
+    drive_profile_pic_id = db.Column(db.String(255), nullable=True)  # Google Drive profile picture ID
+    drive_folder_id = db.Column(db.String(255), nullable=True)  # Google Drive folder ID for this employee
     salary = db.Column(db.Float, default=0)
     notes = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -147,6 +185,15 @@ class Employee(db.Model):
     educations = db.relationship('Education', backref='employee', lazy=True, cascade="all, delete-orphan")
     certifications = db.relationship('Certification', backref='employee', lazy=True, cascade="all, delete-orphan")
     documents = db.relationship('Document', backref='employee', lazy=True, cascade="all, delete-orphan")
+    
+    def get_profile_picture_url(self):
+        """Get the URL for the profile picture, either from Google Drive or local storage."""
+        if self.drive_profile_pic_id and drive_helper.is_enabled():
+            return drive_helper.get_file_url(self.drive_profile_pic_id)
+        elif self.profile_picture:
+            return url_for('uploaded_file', filename=self.profile_picture, file_type='profile_pictures')
+        else:
+            return url_for('static', filename='img/default-profile.png')
     
     def __repr__(self):
         return f'<Employee {self.first_name} {self.last_name}>'
@@ -195,6 +242,64 @@ def logout():
     session.pop('is_admin', None)
     flash('You have been logged out', 'info')
     return redirect(url_for('login'))
+
+@app.route('/admin/create-user', methods=['GET', 'POST'])
+@login_required
+def create_user():
+    # Check if user is admin
+    if not session.get('is_admin', False):
+        flash('You do not have permission to access this page', 'danger')
+        return redirect(url_for('index'))
+    
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        employee_id = request.form.get('employee_id')
+        
+        # Validate inputs
+        if not username or not password or not employee_id:
+            flash('All fields are required', 'danger')
+            return render_template('create_user.html')
+            
+        # Check if username already exists
+        existing_user = User.query.filter_by(username=username).first()
+        if existing_user:
+            flash('Username already exists', 'danger')
+            return render_template('create_user.html')
+        
+        # Check if employee_id already has a user account
+        existing_user_with_employee_code = User.query.filter_by(employee_code=employee_id).first()
+        if existing_user_with_employee_code:
+            flash('A user account already exists for this Employee ID', 'danger')
+            return render_template('create_user.html')
+        
+        # Check if employee_id already exists in Employee table
+        existing_employee = Employee.query.filter_by(employee_id=employee_id).first()
+        
+        # Create new user
+        new_user = User(username=username, is_admin=False, employee_code=employee_id)
+        new_user.set_password(password)
+        
+        # If employee exists, link the user to the employee
+        if existing_employee:
+            new_user.employee_id = existing_employee.id
+        
+        try:
+            db.session.add(new_user)
+            db.session.commit()
+            flash('User created successfully', 'success')
+            
+            # Return the username and password to display to the admin in the modal
+            return render_template('create_user.html', 
+                                  new_username=username, 
+                                  new_password=password, 
+                                  new_employee_id=employee_id)
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error creating user: {str(e)}', 'danger')
+            return render_template('create_user.html')
+    
+    return render_template('create_user.html')
 
 @app.route('/')
 @login_required
@@ -768,16 +873,42 @@ def self_onboarding():
                 profile_pic = request.files['profile_picture']
                 if profile_pic and allowed_file(profile_pic.filename, app.config['ALLOWED_IMAGE_EXTENSIONS']):
                     try:
-                        # Create employee folder if it doesn't exist
-                        employee_folder = os.path.join(app.config['PROFILE_PICTURES_FOLDER'], f"{new_employee.employee_id}_{new_employee.first_name}_{new_employee.last_name}")
-                        os.makedirs(employee_folder, exist_ok=True)
-                        
                         # Generate unique filename
                         filename = secure_filename(profile_pic.filename)
                         unique_filename = f"{uuid.uuid4().hex}_{filename}"
-                        file_path = os.path.join(employee_folder, unique_filename)
                         
-                        # Save the file in chunks to handle large files
+                        # Check if Google Drive is enabled
+                        drive_file_id = None
+                        if app.config.get('GOOGLE_DRIVE_ENABLED', False) and drive_helper.is_enabled():
+                            # Create or get employee folder in Google Drive
+                            employee_folder_name = f"{new_employee.employee_id}_{new_employee.first_name}_{new_employee.last_name}"
+                            
+                            if not new_employee.drive_folder_id:
+                                employee_folder_id = drive_helper.create_folder(
+                                    employee_folder_name, 
+                                    parent_id=drive_helper.root_folder_id
+                                )
+                                # Update employee record with folder ID
+                                new_employee.drive_folder_id = employee_folder_id
+                                db.session.commit()
+                            else:
+                                employee_folder_id = new_employee.drive_folder_id
+                            
+                            # Upload profile picture to Google Drive
+                            drive_file_id = drive_helper.upload_file(
+                                profile_pic,
+                                filename=unique_filename,
+                                mime_type=profile_pic.content_type,
+                                parent_id=employee_folder_id
+                            )
+                            
+                            # Update employee record with the Drive file ID
+                            new_employee.drive_profile_pic_id = drive_file_id
+                        
+                        # Also save locally as backup
+                        employee_folder = os.path.join(app.config['PROFILE_PICTURES_FOLDER'], f"{new_employee.employee_id}_{new_employee.first_name}_{new_employee.last_name}")
+                        os.makedirs(employee_folder, exist_ok=True)
+                        file_path = os.path.join(employee_folder, unique_filename)
                         profile_pic.save(file_path)
                         
                         # Update employee record with the new profile picture
@@ -792,16 +923,40 @@ def self_onboarding():
                     doc_file = request.files[doc_type]
                     if doc_file and allowed_file(doc_file.filename, app.config['ALLOWED_DOCUMENT_EXTENSIONS']):
                         try:
-                            # Create employee document folder if it doesn't exist
-                            employee_folder = os.path.join(app.config['DOCUMENTS_FOLDER'], f"{new_employee.employee_id}_{new_employee.first_name}_{new_employee.last_name}")
-                            os.makedirs(employee_folder, exist_ok=True)
-                            
                             # Generate unique filename
                             filename = secure_filename(doc_file.filename)
                             unique_filename = f"{doc_type}_{uuid.uuid4().hex}_{filename}"
-                            file_path = os.path.join(employee_folder, unique_filename)
                             
-                            # Save the file in chunks to handle large files
+                            # Check if Google Drive is enabled
+                            drive_file_id = None
+                            if app.config.get('GOOGLE_DRIVE_ENABLED', False) and drive_helper.is_enabled():
+                                # Create employee folder in Google Drive if it doesn't exist
+                                employee_folder_name = f"{new_employee.employee_id}_{new_employee.first_name}_{new_employee.last_name}"
+                                
+                                # Create or get employee folder in Google Drive
+                                if not new_employee.drive_folder_id:
+                                    employee_folder_id = drive_helper.create_folder(
+                                        employee_folder_name, 
+                                        parent_id=drive_helper.root_folder_id
+                                    )
+                                    # Update employee record with folder ID
+                                    new_employee.drive_folder_id = employee_folder_id
+                                    db.session.commit()
+                                else:
+                                    employee_folder_id = new_employee.drive_folder_id
+                                
+                                # Upload file to Google Drive
+                                drive_file_id = drive_helper.upload_file(
+                                    doc_file,
+                                    filename=unique_filename,
+                                    mime_type=doc_file.content_type,
+                                    parent_id=employee_folder_id
+                                )
+                            
+                            # Also save locally as backup
+                            employee_folder = os.path.join(app.config['DOCUMENTS_FOLDER'], f"{new_employee.employee_id}_{new_employee.first_name}_{new_employee.last_name}")
+                            os.makedirs(employee_folder, exist_ok=True)
+                            file_path = os.path.join(employee_folder, unique_filename)
                             doc_file.save(file_path)
                             
                             # Create document record
@@ -809,7 +964,8 @@ def self_onboarding():
                                 employee_id=new_employee.id,
                                 filename=os.path.join(f"{new_employee.employee_id}_{new_employee.first_name}_{new_employee.last_name}", unique_filename),
                                 original_filename=filename,
-                                document_type=doc_type
+                                document_type=doc_type,
+                                drive_file_id=drive_file_id
                             )
                             db.session.add(document)
                             db.session.commit()
@@ -895,41 +1051,7 @@ def self_onboarding():
                               certifications=[],
                               documents=[])
 
-@app.route('/create_user', methods=['GET', 'POST'])
-@admin_required
-def create_user():
-    if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        employee_id = request.form['employee_id']
-        
-        # Check if username already exists
-        existing_user = User.query.filter_by(username=username).first()
-        if existing_user:
-            flash('Username already exists', 'danger')
-            return redirect(url_for('create_user'))
-        
-        # Check if employee_id already exists in Employee table
-        existing_employee = Employee.query.filter_by(employee_id=employee_id).first()
-        
-        # Create new user
-        new_user = User(username=username, is_admin=False, employee_code=employee_id)
-        new_user.set_password(password)
-        
-        # If employee exists, link the user to the employee
-        if existing_employee:
-            new_user.employee_id = existing_employee.id
-        
-        db.session.add(new_user)
-        db.session.commit()
-        
-        # Return to the same page with credentials to display in modal
-        return render_template('create_user.html', 
-                              new_username=username, 
-                              new_password=password, 
-                              new_employee_id=employee_id)
-    
-    return render_template('create_user.html')
+# Route removed to avoid duplicate endpoint
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -971,9 +1093,51 @@ def uploaded_file(filename):
     # Check if user is authorized to access this file
     user = User.query.filter_by(username=session.get('username')).first()
     
+    # Check if it's a Google Drive file ID
+    if filename.startswith('drive:'):
+        file_id = filename.replace('drive:', '')
+        if app.config.get('GOOGLE_DRIVE_ENABLED', False) and drive_helper and drive_helper.is_enabled():
+            # Admin can access any file
+            if session.get('is_admin', False):
+                return redirect(drive_helper.get_download_url(file_id))
+            
+            # Regular user can only access their own files
+            if user and user.employee_id:
+                employee = Employee.query.get(user.employee_id)
+                if employee and employee.drive_folder_id:
+                    # Check if file is in user's folder
+                    if drive_helper.is_file_in_folder(file_id, employee.drive_folder_id):
+                        return redirect(drive_helper.get_download_url(file_id))
+            
+            # If not authorized
+            flash('You are not authorized to access this file', 'danger')
+            return redirect(url_for('index'))
+        else:
+            flash('Google Drive integration is not enabled', 'danger')
+            return redirect(url_for('index'))
+    
+    # Handle local files
+    # Determine if it's a profile picture or a document
+    if 'profile_pictures' in filename:
+        upload_path = app.config['PROFILE_PICTURES_FOLDER']
+        # Extract the actual filename from the path
+        if '/' in filename:
+            parts = filename.split('/')
+            folder_name = parts[-2]
+            filename = parts[-1]
+            upload_path = os.path.join(upload_path, folder_name)
+    else:
+        upload_path = app.config['DOCUMENTS_FOLDER']
+        # Extract the actual filename from the path
+        if '/' in filename:
+            parts = filename.split('/')
+            folder_name = parts[-2]
+            filename = parts[-1]
+            upload_path = os.path.join(upload_path, folder_name)
+
     # Admin can access any file
     if session.get('is_admin', False):
-        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+        return send_from_directory(upload_path, filename)
     
     # Regular user can only access their own files
     if user and user.employee_id:
@@ -982,8 +1146,8 @@ def uploaded_file(filename):
         # Check if the file belongs to this employee
         if employee:
             employee_folder_prefix = f"{employee.employee_id}_{employee.first_name}_{employee.last_name}"
-            if filename.startswith(employee_folder_prefix):
-                return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+            if os.path.basename(upload_path).startswith(employee_folder_prefix) or filename.startswith(employee_folder_prefix):
+                return send_from_directory(upload_path, filename)
     
     # If not authorized
     flash('You are not authorized to access this file', 'danger')
@@ -1022,4 +1186,4 @@ def delete_document(document_id):
     return redirect(url_for('self_onboarding'))
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=12001, debug=True)
+    app.run(host='0.0.0.0', port=12345, debug=True)
